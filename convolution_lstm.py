@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.autograd import Variable
 
 
@@ -66,12 +67,18 @@ class ConvLSTM(nn.Module):
             cell = ConvLSTMCell(self.input_channels[i], self.hidden_channels[i], self.kernel_size)
             setattr(self, name, cell)
             self._all_layers.append(cell)
+        self.pred_conv = nn.Conv2d(sum(hidden_channels), input_channels, 1)
 
     def forward(self, input):
+        input_steps = len(input)
         internal_state = []
         outputs = []
         for step in range(self.step):
-            x = input
+            if step < input_steps:
+                x = input[step]
+            else:
+                x = pred
+            o = []
             for i in range(self.num_layers):
                 # all cells are initialized in the first step
                 name = 'cell{}'.format(i)
@@ -85,11 +92,16 @@ class ConvLSTM(nn.Module):
                 (h, c) = internal_state[i]
                 x, new_c = getattr(self, name)(x, h, c)
                 internal_state[i] = (x, new_c)
+                o.append(x)
+            pred = self.pred_conv(torch.cat(o, 1))
+            # pred = torch.sigmoid(pred)
             # only record effective steps
             if step in self.effective_step:
-                outputs.append(x)
+                # outputs.append(x)
+                outputs.append(pred)
 
-        return outputs, (x, new_c)
+        # return outputs, (x, new_c)
+        return outputs
 
 
 if __name__ == '__main__':
