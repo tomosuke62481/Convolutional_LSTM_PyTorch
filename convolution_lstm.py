@@ -69,9 +69,9 @@ class ConvLSTM(nn.Module):
             self._all_layers.append(cell)
         self.pred_conv = nn.Conv2d(sum(hidden_channels), input_channels, 1)
 
-    def forward(self, input):
+    def forward(self, input, internal_state=[]):
         input_steps = len(input)
-        internal_state = []
+        init_state = True if internal_state == [] else False
         outputs = []
         for step in range(self.step):
             if step < input_steps:
@@ -86,7 +86,8 @@ class ConvLSTM(nn.Module):
                     bsize, _, height, width = x.size()
                     (h, c) = getattr(self, name).init_hidden(batch_size=bsize, hidden=self.hidden_channels[i],
                                                              shape=(height, width))
-                    internal_state.append((h, c))
+                    if init_state:
+                        internal_state.append((h, c))
 
                 # do forward
                 (h, c) = internal_state[i]
@@ -100,8 +101,7 @@ class ConvLSTM(nn.Module):
                 # outputs.append(x)
                 outputs.append(pred)
 
-        # return outputs, (x, new_c)
-        return outputs
+        return outputs, internal_state
 
 
 if __name__ == '__main__':

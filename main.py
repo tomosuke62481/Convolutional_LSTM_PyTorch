@@ -51,14 +51,16 @@ def main():
     print('==>>> total trainning batch number: {}'.format(len(train_loader)))
     print('==>>> total testing batch number: {}'.format(len(test_loader)))
 
-
-    convlstm = ConvLSTM(input_channels=1, hidden_channels=[32, 16, 16], kernel_size=5, step=11,
-                        effective_step=[9, 10]).cuda()
+    hidden_channels = [32, 16, 16]
+    kernel_size = 5
+    encoder = ConvLSTM(input_channels=1, hidden_channels=hidden_channels, kernel_size=kernel_size, step=10, effective_step=[]).cuda()
+    forecaster = ConvLSTM(input_channels=1, hidden_channels=hidden_channels, kernel_size=kernel_size, step=2, effective_step=[0, 1]).cuda()
     # loss_fn = torch.nn.CrossEntropyLoss()
     loss_fn = torch.nn.MSELoss()
     # loss_fn = torch.nn.BCELoss()
-    optimizer = optim.Adadelta(convlstm.parameters())
-    # optimizer = optim.RMSprop(convlstm.parameters(), lr=1e-3)
+    param = list(encoder.parameters()) + list(forecaster.parameters())
+    optimizer = optim.Adadelta(param)
+    # optimizer = optim.RMSprop(param, lr=1e-3)
 
     for epoch in range(epochs):
         print('Epoch: {}'.format(epoch))
@@ -67,7 +69,13 @@ def main():
             input = input.transpose(0, 1).reshape(10, -1, 1, 64, 64)
             input = input.cuda()
             optimizer.zero_grad()
-            output = convlstm(input)
+            internal_state = [] # without this internal_state is reused for some reason
+            _, internal_state = encoder(input, internal_state)
+            # zero input for forecaster because it is unconditioned
+            _, b, c, h, w = input.size()
+            zero_input = Variable(torch.zeros(2, b, c, h, w), requires_grad=False).cuda()
+            output, _ = forecaster(zero_input, internal_state)
+
             loss = 0
             target = target.float() / 255.0
             for i, out in enumerate(output):
