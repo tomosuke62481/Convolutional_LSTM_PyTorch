@@ -53,8 +53,9 @@ def main():
 
     hidden_channels = [32, 16, 16]
     kernel_size = 5
+    predict_steps = 10
     encoder = ConvLSTM(input_channels=1, hidden_channels=hidden_channels, kernel_size=kernel_size, step=10, effective_step=[]).cuda()
-    forecaster = ConvLSTM(input_channels=1, hidden_channels=hidden_channels, kernel_size=kernel_size, step=2, effective_step=[0, 1]).cuda()
+    forecaster = ConvLSTM(input_channels=1, hidden_channels=hidden_channels, kernel_size=kernel_size, step=predict_steps, effective_step=list(range(predict_steps))).cuda()
     # loss_fn = torch.nn.CrossEntropyLoss()
     loss_fn = torch.nn.MSELoss()
     # loss_fn = torch.nn.BCELoss()
@@ -73,7 +74,7 @@ def main():
             _, internal_state = encoder(input, internal_state)
             # zero input for forecaster because it is unconditioned
             _, b, c, h, w = input.size()
-            zero_input = Variable(torch.zeros(2, b, c, h, w), requires_grad=False).cuda()
+            zero_input = Variable(torch.zeros(predict_steps, b, c, h, w), requires_grad=False).cuda()
             output, _ = forecaster(zero_input, internal_state)
 
             loss = 0
