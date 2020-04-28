@@ -67,6 +67,9 @@ def main():
 
     for epoch in range(epochs):
         print('Epoch: {}'.format(epoch))
+        # train
+        encoder.train()
+        forecaster.train()
         for batch_idx, (input, target) in enumerate(train_loader):
             input = input.transpose(0, 1).reshape(10, -1, 1, 64, 64).cuda()
             optimizer.zero_grad()
@@ -81,13 +84,35 @@ def main():
                 tar = target[:, i, :, :].reshape(-1, 1, 64, 64).cuda()
                 loss += loss_fn(out, tar)
                 if batch_idx % 10 == 0:
-                    target_path = 'target{:02d}_{:04d}_{:02d}.png'.format(epoch, batch_idx, i)
+                    target_path = 'train_target{:02d}_{:04d}_{:02d}.png'.format(epoch, batch_idx, i)
                     save_image(tar[0].reshape(64, 64), target_path)
-                    pred_path = 'pred{:02d}_{:04d}_{:02d}.png'.format(epoch, batch_idx, i)
+                    pred_path = 'train_pred{:02d}_{:04d}_{:02d}.png'.format(epoch, batch_idx, i)
                     save_image(out[0].detach().reshape(64, 64), pred_path)
             loss.backward()
             optimizer.step()
-            print('Loss: {}'.format(loss.item()))
+            print('Train Loss: {}'.format(loss.item()))
+        # test
+        encoder.eval()
+        forecaster.eval()
+        with torch.no_grad():
+            for batch_idx, (input, target) in enumerate(test_loader):
+                input = input.transpose(0, 1).reshape(10, -1, 1, 64, 64).cuda()
+                internal_state = [] # without this internal_state is reused for some reason
+                _, internal_state = encoder(input, internal_state)
+                # zero input for forecaster because it is unconditioned
+                _, b, c, h, w = input.size()
+                zero_input = Variable(torch.zeros(predict_steps, b, c, h, w), requires_grad=False).cuda()
+                output, _ = forecaster(zero_input, internal_state)
+                loss = 0
+                for i, out in enumerate(output):
+                    tar = target[:, i, :, :].reshape(-1, 1, 64, 64).cuda()
+                    loss += loss_fn(out, tar)
+                    if batch_idx % 10 == 0:
+                        target_path = 'test_target{:02d}_{:04d}_{:02d}.png'.format(epoch, batch_idx, i)
+                        save_image(tar[0].reshape(64, 64), target_path)
+                        pred_path = 'test_pred{:02d}_{:04d}_{:02d}.png'.format(epoch, batch_idx, i)
+                        save_image(out[0].detach().reshape(64, 64), pred_path)
+                print('Test Loss: {}'.format(loss.item()))
     return
 
 if __name__ == '__main__':
