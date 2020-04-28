@@ -95,7 +95,6 @@ class ConvLSTM(nn.Module):
                 internal_state[i] = (x, new_c)
                 o.append(x)
             pred = self.pred_conv(torch.cat(o, 1))
-            # pred = torch.sigmoid(pred)
             # only record effective steps
             if step in self.effective_step:
                 # outputs.append(x)

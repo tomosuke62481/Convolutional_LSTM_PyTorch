@@ -22,6 +22,10 @@ def save_image(img, path, clip_by_min_max=True):
     pil_img.save(path)
     return
 
+class SequenceTransform:
+    def __call__(self, x):
+        return x.float() / 255.0
+
 def main():
     epochs = 10
 
@@ -30,12 +34,11 @@ def main():
         os.mkdir(root)
 
     transform = transforms.Compose([
-        # transforms.ToTensor(),
-        # transforms.Normalize((0.1307,), (0.3081,))
+        SequenceTransform()
     ])
 
-    train_set = MovingMNIST(root='.data/mnist', train=True, transform=transform, download=True)
-    test_set = MovingMNIST(root='.data/mnist', train=False, transform=transform, download=True)
+    train_set = MovingMNIST(root='.data/mnist', train=True, transform=transform, target_transform=transform, download=True)
+    test_set = MovingMNIST(root='.data/mnist', train=False, transform=transform, target_transform=transform, download=True)
 
     batch_size = 32
 
@@ -56,19 +59,16 @@ def main():
     predict_steps = 10
     encoder = ConvLSTM(input_channels=1, hidden_channels=hidden_channels, kernel_size=kernel_size, step=10, effective_step=[]).cuda()
     forecaster = ConvLSTM(input_channels=1, hidden_channels=hidden_channels, kernel_size=kernel_size, step=predict_steps, effective_step=list(range(predict_steps))).cuda()
-    # loss_fn = torch.nn.CrossEntropyLoss()
-    loss_fn = torch.nn.MSELoss()
-    # loss_fn = torch.nn.BCELoss()
+    # loss_fn = torch.nn.MSELoss()
+    loss_fn = torch.nn.BCEWithLogitsLoss()
     param = list(encoder.parameters()) + list(forecaster.parameters())
-    optimizer = optim.Adadelta(param)
-    # optimizer = optim.RMSprop(param, lr=1e-3)
+    # optimizer = optim.Adadelta(param)
+    optimizer = optim.RMSprop(param, lr=1e-3, alpha=0.9)
 
     for epoch in range(epochs):
         print('Epoch: {}'.format(epoch))
         for batch_idx, (input, target) in enumerate(train_loader):
-            input = input.float() / 255.0
-            input = input.transpose(0, 1).reshape(10, -1, 1, 64, 64)
-            input = input.cuda()
+            input = input.transpose(0, 1).reshape(10, -1, 1, 64, 64).cuda()
             optimizer.zero_grad()
             internal_state = [] # without this internal_state is reused for some reason
             _, internal_state = encoder(input, internal_state)
@@ -76,13 +76,9 @@ def main():
             _, b, c, h, w = input.size()
             zero_input = Variable(torch.zeros(predict_steps, b, c, h, w), requires_grad=False).cuda()
             output, _ = forecaster(zero_input, internal_state)
-
             loss = 0
-            target = target.float() / 255.0
             for i, out in enumerate(output):
-                tar = target[:, i, :, :]
-                tar = tar.reshape(-1, 1, 64, 64)
-                tar = tar.cuda()
+                tar = target[:, i, :, :].reshape(-1, 1, 64, 64).cuda()
                 loss += loss_fn(out, tar)
                 if batch_idx % 10 == 0:
                     target_path = 'target{:02d}_{:04d}_{:02d}.png'.format(epoch, batch_idx, i)

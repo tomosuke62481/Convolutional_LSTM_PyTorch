@@ -76,11 +76,11 @@ class MovingMNIST(data.Dataset):
         # seq = Image.fromarray(seq.numpy(), mode='L')
         # target = Image.fromarray(target.numpy(), mode='L')
 
-        # if self.transform is not None:
-        #     seq = self.transform(seq)
+        if self.transform is not None:
+            seq = self.transform(seq)
 
-        # if self.target_transform is not None:
-        #     target = self.target_transform(target)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
 
         return seq, target
 
